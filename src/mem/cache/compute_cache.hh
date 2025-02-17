@@ -14,17 +14,19 @@ struct ComputeCacheParams;
 class ComputeCache : public BaseCache
 {
     protected:
-
-        bool computeEnabled;
-        std::unordered_set<std::string> supportedOps;
+        enum ComputeType { 
+            IntAdd,   
+            IntMul,
+        };
         Cycles computeLatency;
 
-        void vectorAdd(uint8_t* data, size_t size, int offset = 1);
-
-        bool performComputation(PacketPtr pkt);
+        bool processCompute(PacketPtr pkt);
+        void handleComputeRequest(PacketPtr pkt);
+        std::unordered_map<ComputeType, std::function<void(uint8_t*, int)>> computeFuncs;
+        void recvTimingReq(PacketPtr pkt) override;
 
     public:
-        ComputeCache(const ComputeCacheParams &p);
+        ComputeCache(const BaseCacheParams *params);
 
         virtual void satisfyRequest(PacketPtr pkt, CacheBlk *blk,
             bool deferred_response, bool pending_downgrade) override;

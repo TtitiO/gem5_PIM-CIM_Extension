@@ -6,15 +6,26 @@
 #include "params/ComputeCache.hh"
 namespace gem5
 {
-ComputeCache::ComputeCache(const ComputeCacheParams &p)
-: BaseCache(p, p.size / p.assoc),
-    computeEnabled(p.compute_enabled),
-    supportedOps(p.supported_ops.begin(), p.supported_ops.end()),
-    computeLatency(p.compute_latency)
+ComputeCache::ComputeCache(const BaseCacheParams *params)
+: BaseCache(params), computeLatency(params->compute_latency)
 {
-    DPRINTF(ComputeCache, "Created ComputeCache\n");
+    computeFuncs[IntAdd] = [](uint8_t* data, int operand) {
+        *reinterpret_cast<int*>(data) += operand;
+    };
+    
+    computeFuncs[IntMul] = [](uint8_t* data, int operand) {
+        *reinterpret_cast<int*>(data) *= operand;
+    };
 }
 
+void
+ComputeCache::recvTimingReq(PacketPtr pkt) {
+    if (pkt->cmd == MemCmd::ComputeReq) {
+        handleComputeRequest(pkt);
+    } else {
+        BaseCache::recvTimingReq(pkt);
+    }
+}
 void 
 ComputeCache::satisfyRequest(PacketPtr pkt, CacheBlk *blk, bool deferred_response, bool pending_downgrade) 
 {
@@ -27,26 +38,28 @@ ComputeCache::satisfyRequest(PacketPtr pkt, CacheBlk *blk, bool deferred_respons
     BaseCache::satisfyRequest(pkt, blk, deferred_response, pending_downgrade);
 }
 
-void
-ComputeCache::vectorAdd(uint8_t* data, size_t size, int offset) 
-{
-    for (int i=0; i<size; i++) {
-        data[i] += offset;
+void 
+ComputeCache::handleComputeRequest(PacketPtr pkt) {
+    if (tags->findBlock(pkt->getAddr())->isValid()) {
+        processCompute(pkt);
+    } else {
+        PacketPtr fillPkt = new Packet(pkt->req, MemCmd::ReadReq);
+        memSidePort->sendTimingReq(fillPkt); 
+        pkt->pushSenderState(new ComputeCallback(this));
     }
 }
 
-bool
-ComputeCache::performComputation(PacketPtr pkt) 
-{
-    if (supportedOps.find("ADD") != supportedOps.end()) {
-        uint8_t* data = pkt->getPtr<uint8_t>();
-        int32_t add_value = pkt->getComputeValue();
-        size_t size = pkt->getSize();
-        vectorAdd(data, size, add_value);
-        DPRINTF(ComputeCache, "Performed ADD on %d bytes\n", size);
-        return true;
-    } 
-    return false;
+void
+ComputeCache::processCompute(PacketPtr pkt) {
+    auto compute_type = static_cast<ComputeType>(pkt->getComputeType());
+    int operand = pkt->getComputeOperand();
+    
+    uint8_t* data = pkt->getPtr();
+    computeFuncs[compute_type](data, operand);
+    
+    tags->findBlock(pkt->getAddr())->setDirty();
+    pkt->makeResponse();
+    cpuSidePort->sendTimingResp(pkt);
 }
 
 }

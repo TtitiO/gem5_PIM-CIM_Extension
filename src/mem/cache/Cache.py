@@ -181,3 +181,25 @@ class NoncoherentCache(BaseCache):
     # This is typically a last level cache and any clean
     # writebacks would be unnecessary traffic to the main memory.
     writeback_clean = False
+
+
+class ComputeCache(BaseCache):
+    #configuration
+    type = "ComputeCache"
+    cxx_header = "mem/cache/compute_cache.hh"
+    cxx_class = "gem5::ComputeCache"
+
+    # set default values for the cache
+    size = '256kB'
+    assoc = 8
+    tag_latency = 20
+    data_latency = 20
+    response_latency = 20
+    mshrs = 20
+    tgts_per_mshr = 12
+    
+
+    compute_enabled = Param.Bool(False, "Enable in-cache computation")
+    supported_ops = VectorParam.String(["ADD"], 
+                                      "Supported compute operations")
+    compute_latency = Param.Cycles(5, "Additional cycles for computation")

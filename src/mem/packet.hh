@@ -149,6 +149,8 @@ class MemCmd
         HTMAbort,
         // Tlb shootdown
         TlbiExtSync,
+        ComputeReq, // Request for computation
+        ComputeResp, // Response for computation
         NUM_MEM_CMDS
     };
 
@@ -177,6 +179,7 @@ class MemCmd
         IsPrint,        //!< Print state matching address (for debugging)
         IsFlush,        //!< Flush the address from caches
         FromCache,      //!< Request originated from a caching agent
+        NeedsCompute,   //!< Request for computation
         NUM_COMMAND_ATTRIBUTES
     };
 
@@ -219,7 +222,7 @@ class MemCmd
     bool
     testCmdAttrib(MemCmd::Attribute attrib) const
     {
-        return commandInfo[cmd].attributes[attrib] != 0;
+        return T[cmd].attributes[attrib] != 0;
     }
 
   public:
@@ -257,13 +260,15 @@ class MemCmd
     bool isError() const        { return testCmdAttrib(IsError); }
     bool isPrint() const        { return testCmdAttrib(IsPrint); }
     bool isFlush() const        { return testCmdAttrib(IsFlush); }
+    bool needsCompute() const   { return testCmdAttrib(NeedsCompute); }
 
     bool
     isDemand() const
     {
         return (cmd == ReadReq || cmd == WriteReq ||
                 cmd == WriteLineReq || cmd == ReadExReq ||
-                cmd == ReadCleanReq || cmd == ReadSharedReq);
+                cmd == ReadCleanReq || cmd == ReadSharedReq || 
+                cmd == ComputeReq);
     }
 
     Command
@@ -418,6 +423,21 @@ class Packet : public Printable, public Extensible<Packet>
      * This is used for correctness/debugging only.
      */
     uint64_t htmTransactionUid;
+
+    /**
+     * The opcode of the computation request.
+     */
+    uint8_t computeOpcode;
+
+    /**
+     * The operand of the computation request.
+     */
+    uint8_t computeOperand;
+
+    /**
+     * The result of the computation.
+     */
+    bool computeVerified = false;
 
   public:
 
@@ -629,6 +649,7 @@ class Packet : public Printable, public Extensible<Packet>
             getOffset(blk_size) == 0 && getSize() == blk_size &&
             !isMaskedWrite();
     }
+    bool needsCompute() const        { return cmd.needsCompute(); }
 
     //@{
     /// Snoop flags
@@ -1005,6 +1026,8 @@ class Packet : public Printable, public Extensible<Packet>
             return MemCmd::SoftPFReq;
         else if (req->isLockedRMW())
             return MemCmd::LockedRMWReadReq;
+        else if (req->NeedsCompute())
+            return MemCmd::ComputeReq;
         else
             return MemCmd::ReadReq;
     }
@@ -1545,6 +1568,26 @@ class Packet : public Printable, public Extensible<Packet>
      * failed transaction, this function returns the failure reason.
      */
     HtmCacheFailure getHtmTransactionFailedInCacheRC() const;
+    
+    /**
+     * set compute params for compute request
+     */
+    void setComputeParams(uint8_t op, uint8_t operand) {
+        computeOpcode = op;
+        computeOperand = operand;
+    }
+
+    uint8_t getComputeOpcode() const { return computeOpcode; }
+    int getComputeOperand() const { return computeOperand; }
+
+    static PacketPtr createCompute(const RequestPtr &req, uint8_t opcode, uint8_t operand) {
+        PacketPtr pkt = new Packet(req, MemCmd::ComputeReq);
+        pkt->setComputeParams(opcode, operand);
+        return pkt;
+    }
+
+    void setComputeVerified() { computeVerified = true; }
+    bool isComputeVerified() const { return computeVerified; }
 };
 
 } // namespace gem5

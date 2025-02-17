@@ -7,7 +7,7 @@
 namespace gem5
 {
 ComputeCache::ComputeCache(const BaseCacheParams *params)
-: BaseCache(params), computeLatency(params->compute_latency)
+: BaseCache(params)
 {
     computeFuncs[IntAdd] = [](uint8_t* data, int operand) {
         *reinterpret_cast<int*>(data) += operand;
@@ -29,22 +29,20 @@ ComputeCache::recvTimingReq(PacketPtr pkt) {
 void 
 ComputeCache::satisfyRequest(PacketPtr pkt, CacheBlk *blk, bool deferred_response, bool pending_downgrade) 
 {
-    if (computeEnabled && pkt->needCompute()) {
-        if (performComputation(pkt)) {
-            pkt->headerDelay += computeLatency;
-            return;
+    if (pkt->cmd == MemCmd::ComputeReq) {
+        if (tags->findBlock(pkt->getAddr())->isValid()) {
+            processCompute(pkt);
         }
+    } else {
+        Cache::satisfyRequest(pkt, blk, deferred_response, pending_downgrade);
     }
-    BaseCache::satisfyRequest(pkt, blk, deferred_response, pending_downgrade);
 }
 
 void 
 ComputeCache::handleComputeRequest(PacketPtr pkt) {
-    if (tags->findBlock(pkt->getAddr())->isValid()) {
-        processCompute(pkt);
-    } else {
+    if (!tags->findBlock(pkt->getAddr())->isValid()) {
         PacketPtr fillPkt = new Packet(pkt->req, MemCmd::ReadReq);
-        memSidePort->sendTimingReq(fillPkt); 
+        memSidePort.sendTimingReq(fillPkt); 
         pkt->pushSenderState(new ComputeCallback(this));
     }
 }
@@ -59,7 +57,7 @@ ComputeCache::processCompute(PacketPtr pkt) {
     
     tags->findBlock(pkt->getAddr())->setDirty();
     pkt->makeResponse();
-    cpuSidePort->sendTimingResp(pkt);
+    cpuSidePort.sendTimingResp(pkt);
 }
 
 }

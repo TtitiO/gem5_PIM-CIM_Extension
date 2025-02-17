@@ -23,13 +23,13 @@ class ComputeCache : public BaseCache
         bool processCompute(PacketPtr pkt);
         void handleComputeRequest(PacketPtr pkt);
         std::unordered_map<ComputeType, std::function<void(uint8_t*, int)>> computeFuncs;
-        void recvTimingReq(PacketPtr pkt) override;
 
     public:
         ComputeCache(const BaseCacheParams *params);
 
-        virtual void satisfyRequest(PacketPtr pkt, CacheBlk *blk,
+        void satisfyRequest(PacketPtr pkt, CacheBlk *blk,
             bool deferred_response, bool pending_downgrade) override;
+        void recvTimingReq(PacketPtr pkt) override;
 };
 }
 

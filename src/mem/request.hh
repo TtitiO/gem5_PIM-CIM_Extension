@@ -250,6 +250,7 @@ class Request : public Extensible<Request>
         /** The Request tells the interconnect that a
             remote TLB Sync request has completed */
         TLBI_EXT_SYNC_COMP          = 0x0000800000000000,
+        COMPUTE_IN_CACHE            = 0x1000000000000000,
 
         /**
          * These flags are *not* cleared when a Request object is
@@ -337,6 +338,11 @@ class Request : public Extensible<Request>
         READ_WRITE              = 0x00000800,
         SHARED                  = 0x00001000,
 
+    };
+
+    enum : ComputeType : uint8_t{
+        IntAdd,
+        IntMul,
     };
 
     using LocalAccessor =
@@ -469,6 +475,8 @@ class Request : public Extensible<Request>
 
     /** The cause for HTM transaction abort */
     HtmFailureFaultCause _htmAbortCause = HtmFailureFaultCause::INVALID;
+
+    ComputeType _computeType;
 
   public:
 
@@ -1008,6 +1016,19 @@ class Request : public Extensible<Request>
         _reqInstSeqNum = seq_num;
     }
 
+    ComputeType
+    getComputeType() const { 
+        assert(isComputeInCache());
+        return _computeType; 
+    }
+
+    void 
+    setComputeType(ComputeType type)
+    {
+        _flags.set(COMPUTE_IN_CACHE);
+        _computeType = type;
+    }
+
     /** Accessor functions for flags. Note that these are for testing
         only; setting flags should be done via setFlags(). */
     bool isUncacheable() const { return _flags.isSet(UNCACHEABLE); }
@@ -1119,6 +1140,8 @@ class Request : public Extensible<Request>
     bool isCacheInvalidate() const { return _flags.isSet(INVALIDATE); }
     bool isCacheMaintenance() const { return _flags.isSet(CLEAN|INVALIDATE); }
     /** @} */
+
+    bool isComputeInCache() const { return _flags.isSet(COMPUTE_IN_CACHE); }
 };
 
 } // namespace gem5

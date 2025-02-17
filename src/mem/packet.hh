@@ -432,7 +432,7 @@ class Packet : public Printable, public Extensible<Packet>
     /**
      * The operand of the computation request.
      */
-    uint8_t computeOperand;
+    uint32_t computeOperand;
 
     /**
      * The result of the computation.
@@ -1069,6 +1069,13 @@ class Packet : public Printable, public Extensible<Packet>
         return new Packet(req, makeWriteCmd(req));
     }
 
+    static PacketPtr
+    createCompute(const RequestPtr &req, uint8_t opcode, uint32_t operand) {
+        PacketPtr pkt = createRead(req);
+        pkt->setComputeParams(opcode, operand);
+        return pkt;
+    }
+
     /**
      * clean up packet variables
      */
@@ -1572,19 +1579,15 @@ class Packet : public Printable, public Extensible<Packet>
     /**
      * set compute params for compute request
      */
-    void setComputeParams(uint8_t op, uint8_t operand) {
+    void setComputeParams(uint8_t op, uint32_t operand) {
         computeOpcode = op;
         computeOperand = operand;
     }
 
     uint8_t getComputeOpcode() const { return computeOpcode; }
-    int getComputeOperand() const { return computeOperand; }
+    uint32_t getComputeOperand() const { return computeOperand; }
 
-    static PacketPtr createCompute(const RequestPtr &req, uint8_t opcode, uint8_t operand) {
-        PacketPtr pkt = new Packet(req, MemCmd::ComputeReq);
-        pkt->setComputeParams(opcode, operand);
-        return pkt;
-    }
+    
 
     void setComputeVerified() { computeVerified = true; }
     bool isComputeVerified() const { return computeVerified; }
